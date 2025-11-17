@@ -4,19 +4,22 @@ import http from 'k6/http';
 import { check } from 'k6';
 import { Trend, Rate } from 'k6/metrics';
 
-export const getContactsDuration = new Trend('get_contacts', true);
+export const getDuration = new Trend('get_duration', true);
 export const RateContentOK = new Rate('content_OK');
 
+// CONFIGURAÇÕES DO TESTE
 export const options = {
   thresholds: {
-    http_req_failed: ['rate<0.30'],
-    get_contacts: ['p(99)<500'],
+    http_req_failed: ['rate<0.25'],
+    get_duration: ['p(90)<6800'],
     content_OK: ['rate>0.95']
   },
+
   stages: [
-    { duration: '3s', target: 2 },
-    { duration: '3s', target: 6 },
-    { duration: '3s', target: 9 }
+    { duration: '30s', target: 7 },
+    { duration: '2m', target: 92 },
+    { duration: '1m', target: 92 },
+    { duration: '30s', target: 0 }
   ]
 };
 
@@ -28,23 +31,19 @@ export function handleSummary(data) {
 }
 
 export default function () {
-  const baseUrl = 'https://test.k6.io/';
-
-  const params = {
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  };
-
   const OK = 200;
+  const baseUrl = 'https://jsonplaceholder.typicode.com/users';
 
-  const res = http.get(`${baseUrl}`, params);
+  const response = http.get(baseUrl);
 
-  getContactsDuration.add(res.timings.duration);
+  getDuration.add(response.timings.duration);
+  RateContentOK.add(response.status === OK);
 
-  RateContentOK.add(res.status === OK);
-
-  check(res, {
-    'GET Contacts - Status 200': () => res.status === OK
+  check(response, {
+    'Status 200': () => response.status === OK,
+    'Resposta é array': () =>
+      response.status === OK &&
+      response.headers['Content-Type']?.includes('application/json') &&
+      Array.isArray(response.json())
   });
 }
